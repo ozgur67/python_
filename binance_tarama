@@ -1,0 +1,69 @@
+pip install pandas_ta
+import pandas as pd
+import yfinance as yf
+from datetime import datetime, timedelta
+import pandas_ta as ta
+
+# Hisse_Temel_Veriler fonksiyonunu tanımlayın.
+def Hisse_Temel_Veriler(sembol):
+    mevcut_tarih = datetime.now()
+    baslangic_tarihi = mevcut_tarih - timedelta(days=4*365)  # Son 4 yıl
+    baslangic_tarihi_str = baslangic_tarihi.strftime('%Y-%m-%d')
+    df = yf.download(sembol, start=baslangic_tarihi_str)
+    return df
+
+# Supertrend indikatörünü hesaplayan fonksiyonu tanımlayın.
+def Supertrend(data, atr_period=10, multiplier=3):
+    high_low = (data['High'] + data['Low']) / 2
+    atr = ta.atr(data['High'], data['Low'], data['Close'], length=atr_period)
+    supertrend = high_low + (multiplier * atr)
+    return supertrend
+
+semboller = ["BTC-USD", "XRP-USD", "ETH-USD", 
+             "AVAX-USD", "ARK-USD", "ARKM-USD", "ARB-USD", "AGIX-USD", "ATOM-USD","ATM-USD", "ASR-USD","ARPA-USD","API3-USD","APE-USD",
+             "ANKR-USD","AMP-USD", "ALT-USD", "ALICE-USD","ALGO-USD","AI-USD", "ADA-USD","ACM-USD","ACH-USD","ACE-USD","ACA-USD",
+
+             "AXL-USD", "AEVO-USD", "ALT-USD","APT-USD", "ADA-USD","ALGO-USD", "AI-USD","AX-USD","AUDIO-USD",
+             "BONK-USD", "BNB-USD","BSW-USD", "BOME-USD","BNX-USD","BLUR-USD","BEL-USD","BCH-USD","BAR-USD","BAND-USD","BAKE-USD",
+             "COMP-USD","CHZ-USD", "CFX-USD","CYBER-USD","CRV-USD","COTI-USD","COS-USD","COMBO-USD","CKB-USD","CITY-USD","CAKE-USD",
+             "DOGE-USD", "DOT-USD", "DYDX-USD","DYM-USD","DODO-USD","DENT-USD","DAR-USD",
+             "ETHFI-USD", "EDU-USD","ETHW-USD","ETC-USD","EOS-USD","ENS-USD","ENJ-USD",
+             "FET-USD", "FTM-USD","FLOKI-USD","FRONT-USD","FIL-USD","FIDA-USD",
+             "GRT-USD","GMT-USD","GAS-USD","GALA-USD",
+             "HOT-USD","HBAR-USD",
+             "IMX-USD","ICP-USD","IOTA-USD", "ID-USD", "INJ-USD",
+             "JUV-USD", "JUP-USD","JTO-USD","JOE-USD","JASMY-USD",
+             "LUNC-USD","LDO-USD", "LINK-USD", "LAZIO-USD","LEVER-USD","LIT-USD","LPT-USD","LOOM-USD","LRC-USD","LTC-USD","LUNA-USD",
+
+             "MANTA-USD", "MATIC-USD","MBOX-USD", "MAV-USD", "MANA-USD","MINA-USD", "MEME-USD","MAGIC-USD","METIS-USD","MKR-USD","MOVR-USD",
+             "MTL-USD",
+             "NTRN-USD", "NEAR-USD","NEO-USD", "NFP-USD",
+             "PEPE-USD","PORTAL-USD", "PIXEL-USD","PYTH-USD","PAXG-USD","PENDLE-USD","PORTO-USD","PSG-USD",
+             "OP-USD","OCEAN-USD","OG-USD","OGN-USD","OM-USD","ONE-USD","ONT-USD","ORDI-USD",
+             "RNDR-USD","RAD-USD","RARE-USD","RAY-USD","REEF-USD","ROSE-USD","RUNE-USD","RVN-USD",
+             "SOL-USD", "SHIB-USD","SKL-USD","STRK-USD", "SXP-USD","SEI-USD", "SUI-USD","SAND-USD", "SANTOS-USD", "SEI-USD","SLP-USD",
+             "SNX-USD", "SPELL-USD","STORJ-USD","STRAX-USD","STX-USD","SUPER-USD",
+             
+             "THETA-USD","TIA-USD","TLM-USD","TOMO-USD","TRB-USD","TWT-USD",
+             "XAI-USD", "XEC-USD","XLM-USD","XTZ-USD","XVG-USD","XVS-USD",
+             "UMA-USD", "UNI-USD", "UNFI-USD",
+             "VANRY-USD", "VET-USD","VIC-USD",
+             "ZIL-USD",
+             "WLD-USD" , "WAVES-USD", "WIF-USD"]
+al_sinyali_verenler = []
+
+for sembol in semboller:
+    data = Hisse_Temel_Veriler(sembol)
+    data['Supertrend'] = Supertrend(data)
+
+    # Son gün için al sinyalini kontrol et (Fiyat Supertrend değerinin üzerindeyse al sinyali)
+    if data.iloc[-1]['Close'] > data.iloc[-1]['Supertrend']:
+        al_sinyali_verenler.append(sembol)
+
+# Al sinyali veren kripto para birimlerini yazdırın
+if al_sinyali_verenler:
+    print("Al sinyali veren kripto para birimleri:")
+    for sembol in al_sinyali_verenler:
+        print(sembol)
+else:
+    print("Hiçbir kripto para biriminden al sinyali gelmedi.")
