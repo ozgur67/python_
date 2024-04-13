@@ -1,0 +1,164 @@
+---
+title: "İstanbul İlçe Belediye Başkanlarının X (Twitter) Profillerindeki Duygu Dağılımı"
+author: "Uraz Akgül"
+date: "2024-04-13"
+# date-modified: last-modified
+date-format: "MMMM D, YYYY"
+categories: [Yüz]
+image: "imgs/emotions_heatmap.png"
+execute:
+  eval: false
+---
+
+Yapılan çalışmaların yanında içinde profil fotoğrafının da olduğu sosyal medya kullanımı da önemli olabiliyor.
+
+Bu uygulamada, İstanbul ilçe belediye başkanlarının X (Twitter) profillerindeki duygularını inceleyeceğiz. Duyguların tespitinde `Py-Feat` kütüphanesinden faydalanacağız.
+
+**Kullanılacak Kütüphaneler**
+
+```{python}
+
+import os
+import pandas as pd
+from feat import Detector
+from feat.plotting import imshow
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+```
+
+**Fotoğrafların İçe Aktarılması**
+
+[Buradan](https://github.com/urazakgul/python-blog/tree/main/posts/post_6){.external target="_blank"} ulaşabileceğiniz fotoğraflar ilçe belediye başkanlarının X (Twitter) hesaplarından indirilmiştir.
+
+```{python}
+
+image_folder = 'ilce_bb_profil/'
+image_files = [f for f in os.listdir(image_folder) if f.endswith('.jpg')]
+
+```
+
+**Duyguların Tespit Edilmesi ve Görselleştirilmesi**
+
+`Py-Feat`, görüntülerden ve videolardan yüz ifadelerini kolayca tespit etmek, yüz ifadesi verilerini önceden işlemek ve analiz etmek ve yüz ifadesi verilerini görselleştirmek için kapsamlı bir araç ve model seti sağlar. `Py-Feat` önceden eğitilmiş çeşitli modelleri içeriyor.
+
+```{python}
+
+detector = Detector(
+    face_model='retinaface', # face detection
+    landmark_model='mobilefacenet', # facial landmark detection
+    facepose_model='img2pose', # facial pose estimation
+    au_model='xgb', # action unit detection
+    emotion_model='resmasknet', # emotion detection
+)
+
+```
+
+* Yüz tespiti (Face detection, `face_model`): Bir görüntüdeki veya bir videodaki insan yüzlerini algılama sürecidir. Yüz tespiti, bir görüntü içindeki yüz bölgelerini belirlemek için kullanılır. Parametre seçenekleri şunlardır: `retinaface`, `mtcnn`, `faceboxes`, `img2pose` ve `img2pose-c`.
+
+* Yüz belirleme (Facial landmark detection, `landmark_model`): Yüzün belirli noktalarını (örneğin, gözler, burun, ağız) tespit etme sürecidir. Bu noktalar genellikle gözbebekleri, burun ucundaki nokta, dudakların kenarları gibi önemli anatomik yerlerdir. Parametre seçenekleri şunlardır: `mobilefacenet`, `mobilenet` ve `pfld`.
+
+* Yüz poz tahmini (Facial Pose estimation, `facepose_model`): Bir yüzün konumunu ve/veya dönüşünü belirleme sürecidir. Yüzün kaç derece eğik olduğunu, hangi yönde baktığını tahmin etmeyi içerir. Parametre seçenekleri şunlardır: `img2pose` ve `img2pose-c`.
+
+* Hareket Birimi tespiti (Action Unit detection, `au_model`): Yüz ifadelerindeki belirli kas gruplarını temsil eden hareket birimlerini (action units) tanımlama sürecidir. Örneğin, kaşların kaldırılması, dudakların büzülmesi gibi. Parametre seçenekleri şunlardır: `xgb` ve `svm`.
+
+* Duygu tespiti (Emotion detection, `emotion_model`): Bir kişinin yüz ifadesinden duygusal durumunu belirleme sürecidir. Örneğin, mutlu, üzgün, kızgın gibi duyguları tanımlama. Parametre seçenekleri şunlardır: `resmasknet` ve `svm`.
+
+Bir döngü ile tüm fotoğrafları dahil edeceğiz ama öncesinde örnek bir fotoğraf ile sürece bakalım.
+
+```{python}
+
+example_img = 'uskudar_chp.jpg'
+imshow(image_folder + example_img)
+
+```
+
+![](ilce_bb_profil/uskudar_chp.jpg)
+
+`detect_image()` ile yüklenen modelleri kullanalım.
+
+```{python}
+
+single_face_prediction = detector.detect_image(image_folder + example_img)
+
+```
+
+![](imgs/single_face_prediction.PNG)
+
+Buradan duyguları çekelim.
+
+```{python}
+
+emotions = single_face_prediction.emotions
+
+```
+
+![](imgs/emotions.PNG)
+
+`Py-Feat` görselleştirme imkanı da sunuyor. Bunu iki farklı şekilde yapabiliriz.
+
+```{python}
+
+figs = single_face_prediction.plot_detections(poses=True)
+
+```
+
+![](imgs/emotions_plot_1.png)
+
+```{python}
+
+figs = single_face_prediction.plot_detections(faces='aus', muscles=True)
+
+```
+
+![](imgs/emotions_plot_2.png)
+
+Tüm fotoğraflar için duyguları tespit edelim. Görseli ısı haritası ile yapacağız.
+
+Öncesinde `image_files` değişkenine tüm fotoğrafları aktarmıştık. Bunu kullanabiliriz.
+
+```{python}
+
+emotions_df = pd.DataFrame()
+
+for image_file in image_files:
+    face_prediction = detector.detect_image(image_folder + image_file)
+    face_prediction_final = face_prediction[face_prediction['FaceScore'] == face_prediction['FaceScore'].max()]
+    emotions = face_prediction_final.emotions
+    ilce, parti = image_file.split('_')
+    parti = parti.split('.')[0]
+    emotions['image_file'] = ilce.upper() + '-' + parti.upper()
+    emotions_df = pd.concat([emotions_df, emotions], ignore_index=True)
+
+emotions_df = emotions_df.set_index('image_file')
+emotions_df.columns = emotions_df.columns.str.upper()
+
+```
+
+Döngüde bulunan `face_prediction_final` değişkenini birden fazla yüz tespiti olduğu için oluşturdum. Büyükçekmece belediye başkanının profilinde kedi de bulunmaktadır.
+
+```{python}
+
+example_img = 'buyukcekmece_chp.jpg'
+imshow(image_folder + example_img)
+
+```
+
+![](ilce_bb_profil/buyukcekmece_chp.jpg)
+
+Isı haritası ile duyguları gösterebiliriz.
+
+```{python}
+
+plt.figure(figsize=(10, 12))
+sns.heatmap(emotions_df, cmap='Reds', annot=False, linewidths=.5)
+plt.title('İstanbul İlçe Belediye Başkanları X (Twitter) Profilleri Duygu Dağılımı')
+plt.tick_params(left=False, bottom=False)
+plt.ylabel('')
+plt.show()
+
+```
+
+![](imgs/emotions_heatmap.png)
+
+Profil fotoğraflarında doğal olarak en güçlü duygunun `happiness` olduğunu görüyoruz. `neutral` pozlar da kendini göstermektedir.
