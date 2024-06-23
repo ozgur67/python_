@@ -35,18 +35,21 @@ def Bankery(data):
 
 def fetch_data_and_analyze(hisse):
     try:
+        print(hisse)
         data = tv.get_hist(symbol=hisse, exchange='BIST', interval=Interval.in_1_hour, n_bars=100)
-        if data is None:
-            raise ValueError(f"{hisse} için veri alınamadı")
         data = data.reset_index()
         Banker = Bankery(data)
         Banker.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'}, inplace=True)
         Banker.set_index('datetime', inplace=True)
-        Signals = Banker.tail(2).reset_index()
+        Signals = Banker.tail(2)
+        Signals = Signals.reset_index()
 
         Entry = (Signals.loc[0, 'Entry'] == False) & (Signals.loc[1, 'Entry'] == True)
         Last_Price = Signals.loc[1, 'Close']
-        return [hisse, Last_Price, Entry]
+        L1 = [hisse, Last_Price,Entry]
+        print(L1)
+
+        return L1
     except Exception as e:
         print(f"{hisse} için veri alım hatası: {e}")
         return None
