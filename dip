@@ -35,7 +35,6 @@ def Bankery(data):
 
 def fetch_data_and_analyze(hisse):
     try:
-        print(hisse)
         data = tv.get_hist(symbol=hisse, exchange='BIST', interval=Interval.in_1_hour, n_bars=100)
         data = data.reset_index()
         Banker = Bankery(data)
