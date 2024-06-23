@@ -67,8 +67,8 @@ df_sinyaller = pd.DataFrame(columns=Basliklar)
 
 def hisse_isle(stock_list):
     global analiz_edilen_hisse
-    # önerilen max_workers = 4
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+    # önerilen max_workers = 3
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         futures = {executor.submit(fetch_data_and_analyze, hisse): hisse for hisse in stock_list}
         for future in concurrent.futures.as_completed(futures):
             result = future.result()
