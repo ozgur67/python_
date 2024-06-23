@@ -5,26 +5,18 @@ import pandas as pd
 from tvDatafeed import TvDatafeed, Interval
 from tradingview_screener import get_all_symbols
 import warnings
+import concurrent.futures
 
 warnings.simplefilter(action='ignore')
 
-#Standart Moving Average
 def sma(series, length):
-    """
-    Calculate the Simple Moving Average (SMA) for a given series.
-    """
     return series.rolling(window=length).mean()
 
-#Exponential Moving Average
 def ema(series, length):
-    """
-    Calculate the Exponential Moving Average (EMA) for a given series.
-    """
     return series.ewm(span=length, adjust=False).mean()
 
-
 def Bankery(data):
-    df=data.copy()
+    df = data.copy()
     close_minus_rolling_min = data['close'] - pd.Series(data['low']).rolling(window=27).min()
     percentage_change = close_minus_rolling_min / (pd.Series(data['high']).rolling(window=27).max() - pd.Series(data['low']).rolling(window=27).min()) * 100
 
@@ -38,38 +30,63 @@ def Bankery(data):
     hoh = pd.Series(data['high']).rolling(window=34).max()
     bullbearline = ema((typ - lol) / (hoh - lol) * 100, 13)
     bankerentry = (fundtrend > bullbearline) & (bullbearline < 25)
-    df['Entry'] = (bankerentry==True)
+    df['Entry'] = (bankerentry == True)
     return df
 
+def fetch_data_and_analyze(hisse):
+    try:
+        data = tv.get_hist(symbol=hisse, exchange='BIST', interval=Interval.in_1_hour, n_bars=100)
+        if data is None:
+            raise ValueError(f"{hisse} için veri alınamadı")
+        data = data.reset_index()
+        Banker = Bankery(data)
+        Banker.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'}, inplace=True)
+        Banker.set_index('datetime', inplace=True)
+        Signals = Banker.tail(2).reset_index()
+
+        Entry = (Signals.loc[0, 'Entry'] == False) & (Signals.loc[1, 'Entry'] == True)
+        Last_Price = Signals.loc[1, 'Close']
+        return [hisse, Last_Price, Entry]
+    except Exception as e:
+        print(f"{hisse} için veri alım hatası: {e}")
+        return None
 
 tv = TvDatafeed()
 Hisseler = get_all_symbols(market='turkey')
 Hisseler = [symbol.replace('BIST:', '') for symbol in Hisseler]
 Hisseler = sorted(Hisseler)
 
+toplam_hisse = len(Hisseler)
+analiz_edilen_hisse = 0
+hata_alan_hisseler = []
 
-#Raporlama için kullanılacak başlıklar
-Titles = ['Hisse Adı', 'Son Fiyat','Dip Sinyali']
-df_signals = pd.DataFrame(columns=Titles)
+Basliklar = ['Hisse Adı', 'Son Fiyat', 'Dip Sinyali']
+df_sinyaller = pd.DataFrame(columns=Basliklar)
 
-for hisse in Hisseler:
-    try:
-        data = tv.get_hist(symbol=hisse, exchange='BIST', interval=Interval.in_1_hour, n_bars=100)
-        data = data.reset_index()
-        Banker = Bankery(data)
-        Banker.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'}, inplace=True)
-        Banker.set_index('datetime', inplace=True)
-        Buy = False
-        Signals = Banker.tail(2)
-        Signals = Signals.reset_index()
+def hisse_isle(stock_list):
+    global analiz_edilen_hisse
+    # önerilen max_workers = 8
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {executor.submit(fetch_data_and_analyze, hisse): hisse for hisse in stock_list}
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if result:
+                df_sinyaller.loc[len(df_sinyaller)] = result
+                analiz_edilen_hisse += 1
+            else:
+                hata_alan_hisseler.append(futures[future])
 
-        Entry = (Signals.loc[0, 'Entry'] == False) & (Signals.loc[1, 'Entry'] == True)
-        Last_Price = Signals.loc[1, 'Close']
-        L1 = [hisse, Last_Price,Entry]
-        df_signals.loc[len(df_signals)] = L1
-        print(L1)
-    except:
-        pass
+hisse_isle(Hisseler)
 
-df_True = df_signals[(df_signals['Dip Sinyali'] == True)]
+if hata_alan_hisseler:
+    print("Hata alan hisseler yeniden deneniyor...")
+    yeniden_denenecekler = hata_alan_hisseler[:]
+    hata_alan_hisseler = []
+    hisse_isle(yeniden_denenecekler)
+
+df_True = df_sinyaller[df_sinyaller['Dip Sinyali'] == True]
 print(df_True)
+
+print(f"Toplam hisse sayısı: {toplam_hisse}")
+print(f"Analiz edilen hisse sayısı: {analiz_edilen_hisse}")
+print(f"Yeniden denemede hata alan hisseler: {hata_alan_hisseler}")
